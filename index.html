@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Dictionary Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+            line-height: 1.6;
+        }
+        .search-container {
+            margin-bottom: 20px;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            font-size: 18px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+        #definition {
+            padding: 12px 20px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        .word-title {
+            font-size: 24px;
+            font-weight: bold;
+            text-transform: capitalize;
+            color: #333;
+        }
+        #display-definition{
+            white-space: pre-wrap;
+        }
+        .status {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .footnote {
+            margin-top: 30px;
+            font-size: 0.85em;
+            color: #888;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Dictionary Autocomplete Demo</h1>
+    <div id="status" class="status">Type a word to load the dictionary...</div>
+    
+    <div class="search-container">
+        <input type="text" id="word-input" list="word-list" placeholder="Start typing any word...">
+        <datalist id="word-list"></datalist>
+    </div>
+
+    <div id="definition">
+        <div class="word-title" id="display-word"></div>
+        <div id="display-definition">Enter a word to see its definition.</div>
+    </div>
+
+    <div class="footnote">
+        Tip: Double-clicking a word or selecting any text within the definition will automatically show its definition.
+    </div>
+
+    <script>
+        const wordInput = document.getElementById('word-input');
+        const wordList = document.getElementById('word-list');
+        const displayWord = document.getElementById('display-word');
+        const displayDefinition = document.getElementById('display-definition');
+        const status = document.getElementById('status');
+        
+        let dictionary = {};
+        const loadedLetters = new Set();
+        let isLoading = false;
+
+        async function loadLetter(char) {
+            if (!char || !char.match(/[a-z]/i)) return;
+            const letter = char.toLowerCase();
+            
+            if (loadedLetters.has(letter) || isLoading) return;
+
+            isLoading = true;
+            status.innerHTML = `Loading words for letter <strong>'${letter.toUpperCase()}'</strong>...`;
+
+            try {
+                const response = await fetch(`output/alpha/${letter}.json`);
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        console.warn(`Dictionary for '${letter}' not found.`);
+                        loadedLetters.add(letter); // Mark as loaded so we don't try again
+                    } else {
+                        throw new Error('Failed to fetch dictionary file');
+                    }
+                    isLoading = false;
+                    status.innerHTML = `Dictionary ready.`;
+                    return;
+                }
+                
+                const newWords = await response.json();
+                
+                // Merge into main dictionary
+                Object.assign(dictionary, newWords);
+                
+                // Update datalist
+                const words = Object.keys(newWords);
+                
+                // For performance, we'll use a timeout to not block UI if list is huge
+                // But for this demo, we'll just append
+                const fragment = document.createDocumentFragment();
+                words.forEach(word => {
+                    const option = document.createElement('option');
+                    option.value = word;
+                    fragment.appendChild(option);
+                });
+                
+                wordList.appendChild(fragment);
+                
+                loadedLetters.add(letter);
+                status.innerHTML = `Loaded words for <strong>'${letter.toUpperCase()}'</strong>. Total words loaded: ${Object.keys(dictionary).length}`;
+                
+                // Re-trigger input processing if the current input word was waiting for this dictionary
+                if (wordInput.value.toLowerCase().startsWith(letter)) {
+                     wordInput.dispatchEvent(new Event('input'));
+                }
+            } catch (error) {
+                console.error('Error loading dictionary:', error);
+                status.textContent = 'Error loading dictionary. Make sure you are serving this file via a web server.';
+                status.style.color = 'red';
+            } finally {
+                isLoading = false;
+            }
+        }
+
+        wordInput.addEventListener('input', (e) => {
+            const word = e.target.value.toLowerCase();
+            
+            // Try to load dictionary for the first letter
+            if (word.length > 0) {
+                loadLetter(word.charAt(0));
+            }
+
+            // Check for exact match to display definition
+            if (dictionary[word]) {
+                displayWord.textContent = word;
+                displayDefinition.textContent = dictionary[word];
+            } else {
+                // Also check case-insensitive or exact key as it appears in JSON
+                // We optimize this by checking the dictionary directly first
+                const exactKey = Object.keys(dictionary).find(key =>word.startsWith(key.toLowerCase()));
+                if (exactKey) {
+                    displayWord.textContent = exactKey;
+                    displayDefinition.textContent = dictionary[exactKey];
+                }
+            }
+        });
+
+        // Add selection listener to fill input from definition with a 200ms delay
+        displayDefinition.addEventListener('mouseup', () => {
+            const selectedText = window.getSelection().toString().trim();
+            if (selectedText) {
+                setTimeout(() => {
+                    wordInput.value = selectedText;
+                    // Trigger the input event manually to load definition for the selected word
+                    wordInput.dispatchEvent(new Event('input'));
+                }, 200);
+            }
+        });
+    </script>
+</body>
+</html>

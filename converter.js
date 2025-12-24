@@ -4,9 +4,11 @@ const path = require('path');
 // Constants for parsing logic
 const ASCII_ALPHA_UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ-";
 const DEFINITION_PREFIX = "Defn: ";
-const ITEM_PREFIX_NUMERICAL = "1.";
 const ITEM_PREFIX_ALPHABETIZED = "(a)";
+const SYN_PREFIX = "Syn.";
 const MINIMUM_LENGTH = 3;
+
+const INCLUDE_SYN = true;
 
 // Grab arguments: [inputPath, outputDirPath]
 const args = process.argv.slice(2);
@@ -24,12 +26,18 @@ let alphaDictionary = Array.from({ length: 26 }, () => ({}));
 let currentWords = null;
 let currentDefinition = "";
 let definitionStarted = false;
+let synStarted = false;
 
 // Character set validation for word detection
 const isWordLine = (line) => {
     if (!line.trim()) return false;
     // Checks if the line contains only uppercase A-Z, hyphens, semicolons, or spaces
     return [...line].every(char => ASCII_ALPHA_UPPERCASE.includes(char) || char === ';' || char === ' ');
+};
+
+const isItemPrefix = (line) => {
+    // Matches "1.", "2.", etc. or "(a)"
+    return /^\d+\./.test(line) || line.startsWith(ITEM_PREFIX_ALPHABETIZED);
 };
 
 function finishCurrentWord() {
@@ -58,6 +66,7 @@ function finishCurrentWord() {
     currentWords = null;
     currentDefinition = "";
     definitionStarted = false;
+    synStarted = false;
 }
 
 // Read file using a stream to handle large files
@@ -69,20 +78,41 @@ try {
 
     lines.forEach((line, index) => {
         const trimmedLine = line.trimEnd();
-
+        
         if (isWordLine(trimmedLine)) {
             finishCurrentWord();
             currentWords = trimmedLine;
+        } else if (trimmedLine.trim().startsWith(SYN_PREFIX)) {
+            synStarted = true;
+            if (INCLUDE_SYN) {
+                definitionStarted = true;
+                currentDefinition += (currentDefinition ? " " : "") + trimmedLine.trim();
+            }
         } else if (trimmedLine.startsWith(DEFINITION_PREFIX)) {
+            synStarted = false;
             definitionStarted = true;
             const text = trimmedLine.substring(DEFINITION_PREFIX.length).trim();
             currentDefinition += (currentDefinition ? " " : "") + text;
-        } else if ((definitionStarted || currentWords) && (trimmedLine.startsWith(ITEM_PREFIX_NUMERICAL) || trimmedLine.startsWith(ITEM_PREFIX_ALPHABETIZED))) {
+        } else if ((definitionStarted || currentWords) && isItemPrefix(trimmedLine)) {
+            synStarted = false;
             definitionStarted = true;
             currentDefinition += (currentDefinition ? " " : "") + trimmedLine;
         } else if (definitionStarted && currentWords && trimmedLine.length > 0) {
-            // We are inside a definition block, continuing the text
-            currentDefinition += (currentDefinition ? " " : "") + trimmedLine.trim();
+            if (!synStarted || INCLUDE_SYN) {
+                // We are inside a definition block, continuing the text
+                currentDefinition += (currentDefinition ? " " : "") + trimmedLine.trim();
+            }
+        } else if (!definitionStarted && currentWords && trimmedLine.length > 0) {
+             // Heuristic: Check for text after ']' which might indicate start of definition
+             const lastBracketIndex = trimmedLine.lastIndexOf(']');
+             if (lastBracketIndex !== -1 && lastBracketIndex < trimmedLine.length - 1) {
+                 const potentialDef = trimmedLine.substring(lastBracketIndex + 1).trim();
+                 if (potentialDef.length > 0) {
+                     definitionStarted = true;
+                     synStarted = false;
+                     currentDefinition += (currentDefinition ? " " : "") + potentialDef;
+                 }
+             }
         }
 
         // Progress Reporting
