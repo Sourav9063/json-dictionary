@@ -161,16 +161,21 @@
         });
 
         // Add selection listener to fill input from definition with a 200ms delay
-        displayDefinition.addEventListener('mouseup', () => {
+        let selectionTimeout;
+        function handleSelection() {
             const selectedText = window.getSelection().toString().trim();
             if (selectedText) {
-                setTimeout(() => {
+                clearTimeout(selectionTimeout);
+                selectionTimeout = setTimeout(() => {
                     wordInput.value = selectedText;
                     // Trigger the input event manually to load definition for the selected word
                     wordInput.dispatchEvent(new Event('input'));
-                }, 200);
+                }, 400);
             }
-        });
+        }
+
+        displayDefinition.addEventListener('mouseup', handleSelection);
+        displayDefinition.addEventListener('touchend', handleSelection);
     </script>
 </body>
 </html>
