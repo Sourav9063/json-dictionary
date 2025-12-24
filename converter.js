@@ -6,6 +6,7 @@ const ASCII_ALPHA_UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ-";
 const DEFINITION_PREFIX = "Defn: ";
 const ITEM_PREFIX_NUMERICAL = "1.";
 const ITEM_PREFIX_ALPHABETIZED = "(a)";
+const MINIMUM_LENGTH = 3;
 
 // Grab arguments: [inputPath, outputDirPath]
 const args = process.argv.slice(2);
@@ -38,6 +39,7 @@ function finishCurrentWord() {
         const words = currentWords.split(';').map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
 
         words.forEach(word => {
+            if(word.length<MINIMUM_LENGTH) return;
             // Determine which dictionary bin (0-25) this word belongs to
             const asciiValue = word.charCodeAt(0) - 97; // 'a' is 97
             
@@ -92,6 +94,16 @@ try {
 
     // Finalize the last entry
     finishCurrentWord();
+
+    // Sort the output alphaDictionary
+    alphaDictionary = alphaDictionary.map(dict => {
+        const sortedKeys = Object.keys(dict).sort();
+        const sortedDict = {};
+        sortedKeys.forEach(key => {
+            sortedDict[key] = dict[key];
+        });
+        return sortedDict;
+    });
 
     // Prepare Output Logic
     console.log("Parsing complete. Generating output files...");

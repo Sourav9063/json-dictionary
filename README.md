@@ -3,6 +3,6 @@ This repository contains [*Webster's Unabridged English Dictionary*](https://www
 ### How to run it
 Open your terminal and run:
 ```bash
-node parser.js path/to/websters.txt path/to/output.json
+node ./converter.js ./dictionary/pg29765.txt  ./output  
 
 ```
