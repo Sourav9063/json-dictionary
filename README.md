@@ -1,5 +1,7 @@
 This repository contains [*Webster's Unabridged English Dictionary*](https://www.gutenberg.org/ebooks/29765) (from the [Gutenberg Project](https://www.gutenberg.org/), compiled August 22, 2009) in several formats:
 
+**Live website for dictionary:** [https://sourav9063.github.io/json-dictionary/](https://sourav9063.github.io/json-dictionary/)
+
 ### How to run it
 Open your terminal and run:
 ```bash
