@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRT Vocabulary Extractor</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 20px;
+            line-height: 1.6;
+            background-color: #fcfcfc;
+        }
+        .container {
+            margin-bottom: 30px;
+        }
+        #fileInput {
+            display: block;
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px dashed #ccc;
+            width: 100%;
+            box-sizing: border-box;
+            cursor: pointer;
+            text-align: center;
+            background: white;
+            border-radius: 8px;
+        }
+        #fileInput:hover {
+            border-color: #007bff;
+            background: #f8fbff;
+        }
+        .interval-section {
+            margin-bottom: 30px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 20px;
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .interval-title {
+            font-size: 1.4em;
+            color: #2c3e50;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .word-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        .word-item {
+            padding: 12px;
+            border: 1px solid #f0f0f0;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+        .word {
+            font-weight: bold;
+            color: #007bff;
+            font-size: 1.1em;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .definition {
+            font-size: 0.85em;
+            color: #444;
+            display: block;
+            max-height: 100px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .status {
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .loading { background: #e7f3ff; color: #007bff; border: 1px solid #b3d7ff; }
+        .error { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+        .success { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+        .hidden { display: none; }
+        .nav-links {
+            margin-bottom: 20px;
+        }
+        .nav-links a {
+            color: #007bff;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .nav-links a:hover {
+            text-decoration: underline;
+        }
+        label[for="commonWordsFilter"] {
+            font-weight: 500;
+            color: #2c3e50;
+            margin-right: 10px;
+        }
+        #commonWordsFilter {
+            padding: 8px 12px;
+            font-size: 1em;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            background-color: white;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        #commonWordsFilter:hover {
+            border-color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="nav-links">
+        <a href="index.html">← Back to Dictionary Search</a>
+    </div>
+    
+    <h1>SRT Vocabulary Extractor</h1>
+    <p>Upload a .srt subtitle file to extract words longer than 3 characters, grouped by 10-minute intervals with their definitions.</p>
+
+    <div class="container">
+        <label for="commonWordsFilter">Exclude common words (top N): </label>
+        <select id="commonWordsFilter">
+            <option value="5000">5,000</option>
+            <option value="10000" selected>10,000</option>
+            <option value="20000">20,000</option>
+        </select>
+        <input type="file" id="fileInput" accept=".srt">
+        <div id="status" class="status hidden"></div>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const filterSelect = document.getElementById('commonWordsFilter');
+        const status = document.getElementById('status');
+        const results = document.getElementById('results');
+
+        const dictionary = {};
+        const loadedLetters = new Set();
+        const commonWords = new Set();
+        let currentSubtitles = [];
+
+        async function loadCommonWords(count) {
+            commonWords.clear();
+            try {
+                const response = await fetch(`dictionary/top_english_words_lower_${count}.txt`);
+                if (response.ok) {
+                    const text = await response.text();
+                    text.split(/\r?\n/).forEach(line => {
+                        const word = line.trim().toLowerCase();
+                        if (word) commonWords.add(word);
+                    });
+                    console.log(`Loaded ${commonWords.size} common words.`);
+                }
+            } catch (e) {
+                console.warn('Could not load common words list.', e);
+            }
+        }
+
+        // Load default common words immediately
+        loadCommonWords(filterSelect.value);
+
+        filterSelect.addEventListener('change', async () => {
+            const count = filterSelect.value;
+            status.textContent = `Reloading common words list (${count})...`;
+            status.className = 'status loading';
+            status.classList.remove('hidden');
+            
+            await loadCommonWords(count);
+            
+            if (currentSubtitles.length > 0) {
+                processSubtitles(currentSubtitles);
+            } else {
+                status.classList.add('hidden');
+            }
+        });
+
+        async function fetchDictionaryForWord(word) {
+            if (!word || word.length === 0) return;
+            const letter = word[0].toLowerCase();
+            if (!/[a-z]/.test(letter) || loadedLetters.has(letter)) return;
+
+            try {
+                const response = await fetch(`output/alpha/${letter}.json`);
+                if (response.ok) {
+                    const data = await response.json();
+                    // Merge into dictionary (preserving existing keys if any)
+                    Object.assign(dictionary, data);
+                }
+                loadedLetters.add(letter);
+            } catch (e) {
+                console.warn(`Could not load dictionary for letter '${letter}'`);
+            }
+        }
+
+        function parseSRT(content) {
+            // Split by double newline or common SRT block separators
+            const blocks = content.trim().split(/\r?\n\r?\n/);
+            const subtitles = [];
+
+            blocks.forEach(block => {
+                const lines = block.split(/\r?\n/);
+                if (lines.length >= 2) {
+                    // Find the line with the timestamp
+                    const timeLineIndex = lines.findIndex(line => line.includes(' --> '));
+                    if (timeLineIndex !== -1) {
+                        const timeMatch = lines[timeLineIndex].match(/(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})/);
+                        if (timeMatch) {
+                            const startTimeStr = timeMatch[1];
+                            const textLines = lines.slice(timeLineIndex + 1);
+                            const text = textLines.join(' ').replace(/<[^>]*>/g, ''); // Remove HTML tags like <i>
+                            
+                            const [hh, mm, ss_ms] = startTimeStr.split(':');
+                            const [ss, ms] = ss_ms.split(',');
+                            const startTimeMs = (parseInt(hh) * 3600 + parseInt(mm) * 60 + parseInt(ss)) * 1000 + parseInt(ms);
+                            
+                            subtitles.push({ startTimeMs, text });
+                        }
+                    }
+                }
+            });
+            return subtitles;
+        }
+
+        function getWords(text) {
+            // Remove punctuation and numbers, split by whitespace, filter by length > 3
+            return text.toLowerCase()
+                .replace(/[^\w\s]|[\d_]/g, ' ')
+                .split(/\s+/)
+                .filter(word => word.length > 3);
+        }
+
+        async function processSubtitles(subtitles) {
+            results.innerHTML = '';
+            status.textContent = 'Processing...';
+            status.className = 'status loading';
+            status.classList.remove('hidden');
+
+            // Group by 10 minute intervals (10 * 60 * 1000 = 600,000 ms)
+            const INTERVAL_MS = 600000;
+            const grouped = {};
+            const allUniqueWords = new Set();
+
+            subtitles.forEach(sub => {
+                const intervalIndex = Math.floor(sub.startTimeMs / INTERVAL_MS);
+                if (!grouped[intervalIndex]) grouped[intervalIndex] = new Set();
+                
+                const words = getWords(sub.text);
+                words.forEach(word => {
+                    // Filter common words early to avoid unnecessary processing
+                    if (!commonWords.has(word)) {
+                        grouped[intervalIndex].add(word);
+                        allUniqueWords.add(word);
+                    }
+                });
+            });
+
+            // Get unique first letters to load necessary dictionary files
+            const firstLetters = new Set();
+            allUniqueWords.forEach(word => {
+                const l = word[0];
+                if (/[a-z]/.test(l)) firstLetters.add(l);
+            });
+            
+            if (firstLetters.size > 0) {
+                 status.textContent = `Loading dictionary definitions for ${firstLetters.size} letters...`;
+                 // Load dictionaries in parallel
+                 await Promise.all([...firstLetters].map(letter => fetchDictionaryForWord(letter)));
+            }
+
+            renderResults(grouped);
+            
+            status.textContent = 'Processing complete.';
+            status.className = 'status success';
+            setTimeout(() => status.classList.add('hidden'), 5000);
+        }
+
+        fileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            results.innerHTML = '';
+            status.textContent = 'Reading file...';
+            status.className = 'status loading';
+            status.classList.remove('hidden');
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const content = e.target.result;
+                currentSubtitles = parseSRT(content);
+                
+                if (currentSubtitles.length === 0) {
+                    status.textContent = 'Error: Could not parse any valid subtitles from this SRT file.';
+                    status.className = 'status error';
+                    return;
+                }
+
+                await processSubtitles(currentSubtitles);
+            };
+            reader.readAsText(file);
+        });
+
+        function renderResults(grouped) {
+            const sortedIntervals = Object.keys(grouped).sort((a, b) => a - b);
+            
+            if (sortedIntervals.length === 0) {
+                results.innerHTML = '<p>No uncommon words longer than 3 characters found.</p>';
+                return;
+            }
+
+            // Create lookup maps for performance
+            // The dictionary might have keys in different cases, we'll build a lowercase map
+            const lowerDict = {};
+            for (let key in dictionary) {
+                lowerDict[key.toLowerCase()] = { original: key, definition: dictionary[key] };
+            }
+
+            // Track displayed words to show them only once
+            const displayedWords = new Set();
+
+            sortedIntervals.forEach(index => {
+                const startMin = index * 10;
+                const endMin = (parseInt(index) + 1) * 10;
+                
+                const section = document.createElement('div');
+                section.className = 'interval-section';
+                
+                const title = document.createElement('div');
+                title.className = 'interval-title';
+                title.textContent = `${startMin} - ${endMin} Minutes`;
+                section.appendChild(title);
+                
+                const wordList = document.createElement('div');
+                wordList.className = 'word-list';
+                
+                const wordsInInterval = [...grouped[index]].sort();
+                let wordsWithDefinitionsCount = 0;
+
+                wordsInInterval.forEach(word => {
+                    // Skip if word has already been displayed in a previous interval (or this one)
+                    if (displayedWords.has(word)) return;
+
+                    const entry = lowerDict[word];
+                    if (entry) {
+                        wordsWithDefinitionsCount++;
+                        displayedWords.add(word); // Mark as displayed
+
+                        const item = document.createElement('div');
+                        item.className = 'word-item';
+                        item.innerHTML = `
+                            <span class="word">${entry.original}</span>
+                            <span class="definition">${entry.definition}</span>
+                        `;
+                        wordList.appendChild(item);
+                    }
+                });
+
+                if (wordsWithDefinitionsCount > 0) {
+                    section.appendChild(wordList);
+                    results.appendChild(section);
+                }
+            });
+
+            if (results.children.length === 0) {
+                results.innerHTML = '<div class="status error">Found words, but none were present in the loaded dictionary or all were common words.</div>';
+            }
+        }
+    </script>
+</body>
+</html>
