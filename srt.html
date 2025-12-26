@@ -78,14 +78,17 @@
       .controls {
         display: flex;
         flex-direction: column;
-        gap: 20px;
+        gap: 10px;
         margin-bottom: 30px;
         align-items: center;
         background: var(--surface-color);
-        padding: 20px;
+        padding: 16px 20px;
         border-radius: var(--radius-md);
         border: 1px solid var(--border-color);
         box-shadow: var(--shadow-sm);
+        position: sticky;
+        top: 0px;
+        z-index: 100;
       }
 
       .control-group {
@@ -426,6 +429,40 @@
           .map((word) => word.replace(/^[^a-z]+|[^a-z]+$/g, ""));
       };
 
+      const getVisibleIntervalId = () => {
+        const sections = document.querySelectorAll(".interval-section");
+        const controls = document.querySelector(".controls");
+        if (!controls) return null;
+
+        const controlsHeight = controls.getBoundingClientRect().height;
+
+        for (const section of sections) {
+          const rect = section.getBoundingClientRect();
+          if (rect.bottom > controlsHeight + 50) {
+            return section.id;
+          }
+        }
+        return null;
+      };
+
+      const scrollToInterval = (id) => {
+        const element = document.getElementById(id);
+        if (element) {
+          const controls = document.querySelector(".controls");
+          const controlsHeight = controls
+            ? controls.getBoundingClientRect().height
+            : 0;
+          const elementPosition = element.getBoundingClientRect().top;
+          const offsetPosition =
+            elementPosition + window.pageYOffset - controlsHeight - 20;
+
+          window.scrollTo({
+            top: offsetPosition,
+            behavior: "auto",
+          });
+        }
+      };
+
       const renderResults = (grouped) => {
         if (grouped.size === 0) {
           ui.results.innerHTML =
@@ -439,7 +476,11 @@
         let hasAnyWords = false;
 
         sortedIntervals.forEach((index) => {
-          const wordsInInterval = [...grouped.get(index)].sort();
+          const intervalMap = grouped.get(index);
+          // Sort words by their starting timestamp (value in the map)
+          const wordsInInterval = [...intervalMap.entries()]
+            .sort((a, b) => a[1] - b[1])
+            .map(entry => entry[0]);
 
           const validWords = wordsInInterval.filter((word) => {
             if (displayedWords.has(word)) return false;
@@ -452,15 +493,23 @@
 
           if (validWords.length > 0) {
             hasAnyWords = true;
+            
+            const formatInterval = (min) => {
+              const h = Math.floor(min / 60);
+              const m = min % 60;
+              return `${h}:${m.toString().padStart(2, '0')}`;
+            };
+
             const startMin = index * 10;
             const endMin = (index + 1) * 10;
 
             const section = document.createElement("section");
             section.className = "interval-section";
+            section.id = `interval-${index}`;
 
             const title = document.createElement("h2");
             title.className = "interval-title";
-            title.textContent = `${startMin} - ${endMin} Minutes`;
+            title.textContent = `${formatInterval(startMin)} - ${formatInterval(endMin)}`;
             section.appendChild(title);
 
             const grid = document.createElement("div");
@@ -468,13 +517,22 @@
 
             validWords.forEach((word) => {
               const entry = store.getDictionaryEntry(word);
+              const startTimeMs = intervalMap.get(word);
+
+              const totalSeconds = Math.floor(startTimeMs / 1000);
+              const h = Math.floor(totalSeconds / 3600);
+              const m = Math.floor((totalSeconds % 3600) / 60);
+              const s = totalSeconds % 60;
+              const timeStr = h > 0 
+                ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+                : `${m}:${s.toString().padStart(2, '0')}`;
 
               const card = document.createElement("div");
               card.className = "word-card";
 
               const term = document.createElement("div");
               term.className = "word-term";
-              term.textContent = entry.original;
+              term.innerHTML = `${entry.original} <span style="font-weight:normal; font-size:0.8em; color:#666; margin-left:8px;">(${timeStr})</span>`;
 
               const def = document.createElement("div");
               def.className = "word-def";
@@ -509,12 +567,15 @@
         subtitles.forEach((sub) => {
           const intervalIndex = Math.floor(sub.startTimeMs / INTERVAL_MS);
           if (!grouped.has(intervalIndex))
-            grouped.set(intervalIndex, new Set());
+            grouped.set(intervalIndex, new Map());
 
           const words = getUniqueWords(sub.text);
           words.forEach((word) => {
             if (!store.hasInSet("commonWords", word)) {
-              grouped.get(intervalIndex).add(word);
+              const intervalMap = grouped.get(intervalIndex);
+              if (!intervalMap.has(word)) {
+                intervalMap.set(word, sub.startTimeMs);
+              }
               allUniqueWords.add(word);
             }
           });
@@ -612,10 +673,15 @@
         });
 
         ui.filterSelect.addEventListener("change", async () => {
+          const visibleId = getVisibleIntervalId();
+
           await loadCommonWords(ui.filterSelect.value);
           const currentSubs = store.get("currentSubtitles");
           if (currentSubs.length > 0) {
-            processSubtitles(currentSubs);
+            await processSubtitles(currentSubs);
+            if (visibleId) {
+              scrollToInterval(visibleId);
+            }
           }
         });
       };
