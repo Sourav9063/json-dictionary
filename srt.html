@@ -351,11 +351,15 @@
         
         // Heuristic to find the "best" block for a concise meaning
         // 1. Prefer blocks with domain markers like (Chess), (Law), (Naut.), etc.
-        // 2. Otherwise prefer the first block that isn't a simple cross-reference
-        let bestBlock = blocks.find(b => b.trim().startsWith('(')) || blocks[0];
+        // 2. Prefer blocks that start with a definition number "1." or "(a)"
+        // 3. Otherwise prefer the first block that isn't a simple cross-reference
+        let bestBlock = blocks.find(b => b.trim().startsWith('(')) || 
+                        blocks.find(b => /^\s*1\.\s+/.test(b)) ||
+                        blocks[0];
         
         if (bestBlock.trim().startsWith('See ') && blocks.length > 1) {
-          bestBlock = blocks[1];
+          const nonSeeBlock = blocks.find(b => !b.trim().startsWith('See '));
+          if (nonSeeBlock) bestBlock = nonSeeBlock;
         }
 
         // Remove leading numbers like "1. ", "2. "
