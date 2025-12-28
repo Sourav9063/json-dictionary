@@ -382,7 +382,7 @@
           return;
 
         try {
-          const response = await fetch(`output/alpha/${lowerLetter}.json`);
+          const response = await fetch(`cleaned/alpha/${lowerLetter}.json`);
           if (response.ok) {
             const data = await response.json();
             // Store lowercase key -> original data
@@ -637,27 +637,60 @@
         subtitles.forEach((sub, index) => {
           let text = sub.text;
           const words = getUniqueWords(text);
-          const seenWords = new Set();
+          const wordsToDefine = new Set();
 
-          const wordsToDefine = words.filter((word) => {
-            if (seenWords.has(word)) return false;
-            seenWords.add(word);
-            return (
+          words.forEach((word) => {
+            if (
               !store.hasInSet("commonWords", word) &&
               store.hasDictionaryEntry(word)
-            );
-          });
-
-          wordsToDefine.forEach((word) => {
-            const entry = store.getDictionaryEntry(word);
-            if (entry) {
-              let meaning = entry.definition.split(".")[0];
-              const regex = new RegExp(`\\b${word}\\b`, "gi");
-              text = text.replace(regex, (match) => {
-                return `${match}(${meaning})`;
-              });
+            ) {
+              wordsToDefine.add(word);
             }
           });
+
+          if (wordsToDefine.size > 0) {
+            const sortedWords = Array.from(wordsToDefine).sort((a, b) => b.length - a.length);
+            const wordMap = new Map();
+            
+            sortedWords.forEach(word => {
+              const entry = store.getDictionaryEntry(word);
+              let fullDef = entry.definition;
+              
+              // Normalize whitespace first
+              fullDef = fullDef.replace(/\s+/g, ' ').trim();
+
+              // Search for "1. " definition
+              const numberedMatch = fullDef.match(/(?:^|\s)1\.\s+(.*)/);
+              
+              if (numberedMatch) {
+                  // Use the text after "1. "
+                  fullDef = numberedMatch[1];
+              } else {
+                  // If no numbered definition, try to strip Etym block at the start
+                  // Matches "Etym: [...]" non-greedily
+                  fullDef = fullDef.replace(/^Etym:\s*\[.*?\]\s*/, '');
+              }
+              
+              // Take the first part before a period
+              let meaning = fullDef.split('.')[0].trim();
+              
+              if (meaning) {
+                wordMap.set(word, meaning);
+              }
+            });
+
+            if (wordMap.size > 0) {
+              const pattern = Array.from(wordMap.keys())
+                .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+                .join('|');
+              const regex = new RegExp(`\\b(${pattern})\\b`, 'gi');
+              
+              text = text.replace(regex, (match) => {
+                const meaning = wordMap.get(match.toLowerCase());
+                return meaning ? `${match}(${meaning})` : match;
+              });
+            }
+          }
 
           output += `${index + 1}\n${sub.timeString}\n${text}\n\n`;
         });

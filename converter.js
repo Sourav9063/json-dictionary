@@ -9,6 +9,7 @@ const SYN_PREFIX = "Syn.";
 const MINIMUM_LENGTH = 3;
 
 const INCLUDE_SYN = true;
+const FILTERED = true;
 
 // Grab arguments: [inputPath, outputDirPath]
 const args = process.argv.slice(2);
@@ -42,7 +43,23 @@ const isItemPrefix = (line) => {
 
 function finishCurrentWord() {
     if (currentWords && currentDefinition) {
-        const cleanedDefinition = currentDefinition.trim();
+        let cleanedDefinition = currentDefinition.trim();
+
+        if (FILTERED) {
+            // Remove Etym entries: "Etym: [ ... ]"
+            cleanedDefinition = cleanedDefinition.replace(/Etym:\s*\[.*?\]/g, "");
+
+            // Remove domain tags e.g. (Zool.), (Naut.), (Arch.), (Bot.), etc.
+            // Matches (TitleCase.) with support for accented characters like Zoöl
+            cleanedDefinition = cleanedDefinition.replace(/\([A-Z][a-zà-ÿ]+\.\)/g, "");
+
+            // Remove status tags e.g. [Obs.], [Rare.], [Poetic]
+            cleanedDefinition = cleanedDefinition.replace(/\[[A-Z][a-z]+\.?\]/g, "");
+
+            // Clean up double spaces/punctuation artifacts
+            cleanedDefinition = cleanedDefinition.replace(/\s+/g, ' ').trim();
+        }
+
         // Split synonyms/multiple words
         const words = currentWords.split(';').map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
 
