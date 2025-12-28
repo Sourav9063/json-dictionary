@@ -687,7 +687,7 @@
               
               text = text.replace(regex, (match) => {
                 const meaning = wordMap.get(match.toLowerCase());
-                return meaning ? `${match}(${meaning})` : match;
+                return meaning ? `${match} <font color="#91ffcf"><i>(${meaning})</i></font>` : match;
               });
             }
           }
