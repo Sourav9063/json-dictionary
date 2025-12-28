@@ -674,6 +674,7 @@
         const newFileName = "With-Meaning-" + fileName;
 
         let output = "";
+        const wordUsageCount = new Map();
 
         subtitles.forEach((sub, index) => {
           let text = sub.text;
@@ -682,6 +683,7 @@
 
           words.forEach((word) => {
             if (
+              (wordUsageCount.get(word) || 0) < 3 &&
               !store.hasInSet("commonWords", word) &&
               store.hasDictionaryEntry(word)
             ) {
@@ -704,13 +706,21 @@
 
             if (wordMap.size > 0) {
               const pattern = Array.from(wordMap.keys())
-                .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-                .join('|');
-              const regex = new RegExp(`\\b(${pattern})\\b`, 'gi');
+                .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+                .join("|");
+              const regex = new RegExp(`\\b(${pattern})\\b`, "gi");
               
               text = text.replace(regex, (match) => {
-                const meaning = wordMap.get(match.toLowerCase());
-                return meaning ? `${match} <font color="#91ffcf"><i>(${meaning})</i></font>` : match;
+                const lowerMatch = match.toLowerCase();
+                const count = wordUsageCount.get(lowerMatch) || 0;
+                if (count < 3) {
+                  const meaning = wordMap.get(lowerMatch);
+                  if (meaning) {
+                    wordUsageCount.set(lowerMatch, count + 1);
+                    return `${match} <font color="#91ffcf"><i>(${meaning})</i></font>`;
+                  }
+                }
+                return match;
               });
             }
           }
