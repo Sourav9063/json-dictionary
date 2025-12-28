@@ -360,6 +360,12 @@
 
         // Remove leading numbers like "1. ", "2. "
         let meaning = bestBlock.replace(/^\s*\d+\.\s+/, '').trim();
+
+        // Remove leading parenthetical context (e.g. "(Naut.)", "(Gunnery, Mining, etc.)")
+        meaning = meaning.replace(/^\([^)]+\)\s*/, '');
+
+        // Remove subsequent numbered definitions (e.g. "Def 1. 2. Def 2" -> "Def 1")
+        meaning = meaning.split('.')[0].trim();
         
         if (limit > 0 && meaning.length > limit) {
           // Take the first substantial sentence
@@ -590,7 +596,8 @@
 
               const def = document.createElement("div");
               def.className = "word-def";
-              def.textContent = getConciseMeaning(entry.definition,200);
+              // def.textContent = getConciseMeaning(entry.definition,250)+"##"+entry.definition;
+               def.textContent = entry.definition;
 
               card.appendChild(term);
               card.appendChild(def);
@@ -685,7 +692,7 @@
             
             sortedWords.forEach(word => {
               const entry = store.getDictionaryEntry(word);
-              const meaning = getConciseMeaning(entry.definition, 200);
+              const meaning = getConciseMeaning(entry.definition, 250);
               
               if (meaning) {
                 wordMap.set(word, meaning);
