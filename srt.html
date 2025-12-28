@@ -97,6 +97,21 @@
         gap: 10px;
       }
 
+      .btn-primary {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        font-size: 1rem;
+        transition: background-color 0.2s;
+      }
+
+      .btn-primary:hover {
+        background-color: var(--primary-hover);
+      }
+
       select {
         padding: 8px 12px;
         border: 1px solid var(--border-color);
@@ -259,6 +274,10 @@
             </select>
           </div>
 
+          <div class="control-group" id="downloadGroup" style="display: none;">
+            <button id="downloadBtn" class="btn-primary">Download SRT with Meanings</button>
+          </div>
+
           <div class="file-drop-area" id="dropArea">
             <span class="file-msg">Choose a .srt file or drag it here</span>
             <input
@@ -308,6 +327,8 @@
         filterSelect: document.getElementById("commonWordsFilter"),
         status: document.getElementById("status"),
         results: document.getElementById("results"),
+        downloadBtn: document.getElementById("downloadBtn"),
+        downloadGroup: document.getElementById("downloadGroup"),
       };
 
       // UI Helpers
@@ -407,8 +428,10 @@
                   .join(" ")
                   .replace(/<[^>]*>/g, "")
                   .replace(/\{[^}]*\}/g, "");
+                
+                const timeString = lines[timeLineIndex];
 
-                acc.push({ startTimeMs, text });
+                acc.push({ startTimeMs, text, timeString });
               }
             }
           }
@@ -558,6 +581,7 @@
 
       const processSubtitles = async (subtitles) => {
         ui.results.innerHTML = "";
+        ui.downloadGroup.style.display = "none";
         setStatus("Processing vocabulary...", "loading");
 
         const INTERVAL_MS = 600000; // 10 minutes
@@ -597,7 +621,54 @@
         }
 
         renderResults(grouped);
+        ui.downloadGroup.style.display = "flex";
         setStatus("Processing complete.", "success");
+      };
+
+      const generateAndDownloadSRT = () => {
+        const subtitles = store.get("currentSubtitles");
+        if (!subtitles || subtitles.length === 0) return;
+
+        const fileName = store.get("fileName") || "video.srt";
+        const newFileName = "With-Meaning-" + fileName;
+
+        let output = "";
+
+        subtitles.forEach((sub, index) => {
+          let text = sub.text;
+          const words = getUniqueWords(text);
+          const seenWords = new Set();
+
+          const wordsToDefine = words.filter((word) => {
+            if (seenWords.has(word)) return false;
+            seenWords.add(word);
+            return (
+              !store.hasInSet("commonWords", word) &&
+              store.hasDictionaryEntry(word)
+            );
+          });
+
+          wordsToDefine.forEach((word) => {
+            const entry = store.getDictionaryEntry(word);
+            if (entry) {
+              let meaning = entry.definition.split(".")[0];
+              const regex = new RegExp(`\\b${word}\\b`, "gi");
+              text = text.replace(regex, (match) => {
+                return `${match}(${meaning})`;
+              });
+            }
+          });
+
+          output += `${index + 1}\n${sub.timeString}\n${text}\n\n`;
+        });
+
+        const blob = new Blob([output], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = newFileName;
+        a.click();
+        URL.revokeObjectURL(url);
       };
 
       const handleFileSelect = async (event) => {
@@ -607,7 +678,9 @@
         const dropMsg = ui.dropArea.querySelector(".file-msg");
         if (dropMsg) dropMsg.textContent = file.name;
 
+        store.set("fileName", file.name);
         ui.results.innerHTML = "";
+        ui.downloadGroup.style.display = "none";
         setStatus("Reading file...", "loading");
 
         const reader = new FileReader();
@@ -637,6 +710,7 @@
 
       const initEventListeners = () => {
         ui.fileInput.addEventListener("change", handleFileSelect);
+        ui.downloadBtn.addEventListener("click", generateAndDownloadSRT);
 
         const preventDefaults = (e) => {
           e.preventDefault();
