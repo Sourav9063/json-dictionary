@@ -41,24 +41,32 @@ const isItemPrefix = (line) => {
     return /^\d+\./.test(line) || line.startsWith(ITEM_PREFIX_ALPHABETIZED);
 };
 
+const cleanDefinition = (definition) => {
+    let cleaned = definition;
+
+    if (FILTERED) {
+        // Remove Etym entries: "Etym: [ ... ]"
+        cleaned = cleaned.replace(/Etym:\s*\[.*?\]/g, "");
+
+        // Remove domain tags e.g. (Zool.), (Naut.), (Civil Law), (R. C. Ch.)
+        // 1. Matches abbreviations ending in dot inside parens e.g. (Bot.), (U. S.), (R. C. Ch.), (Zoöl.)
+        cleaned = cleaned.replace(/\((?:[A-Z][a-zA-Zà-ÿ]*\.\s*)+\)/g, "");
+        // 2. Matches "Law" domains e.g. (Civil Law), (Eccl. Law), (Law)
+        cleaned = cleaned.replace(/\((?:[A-Z][a-zA-Zà-ÿ\.]+\s+)*Law\)/g, "");
+
+        // Remove status tags e.g. [Obs.], [Rare.], [Poetic], [U. S.], [R.]
+        // Matches bracketed content starting with Uppercase, containing letters/dots/spaces/commas/digits
+        cleaned = cleaned.replace(/\[[A-Z][a-zA-Z0-9à-ÿ\.\s,]*?\]/g, "");
+
+        // Clean up double spaces/punctuation artifacts
+        cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    }
+    return cleaned;
+};
+
 function finishCurrentWord() {
     if (currentWords && currentDefinition) {
-        let cleanedDefinition = currentDefinition.trim();
-
-        if (FILTERED) {
-            // Remove Etym entries: "Etym: [ ... ]"
-            cleanedDefinition = cleanedDefinition.replace(/Etym:\s*\[.*?\]/g, "");
-
-            // Remove domain tags e.g. (Zool.), (Naut.), (Arch.), (Bot.), etc.
-            // Matches (TitleCase.) with support for accented characters like Zoöl
-            cleanedDefinition = cleanedDefinition.replace(/\([A-Z][a-zà-ÿ]+\.\)/g, "");
-
-            // Remove status tags e.g. [Obs.], [Rare.], [Poetic]
-            cleanedDefinition = cleanedDefinition.replace(/\[[A-Z][a-z]+\.?\]/g, "");
-
-            // Clean up double spaces/punctuation artifacts
-            cleanedDefinition = cleanedDefinition.replace(/\s+/g, ' ').trim();
-        }
+        let cleanedDefinition = cleanDefinition(currentDefinition.trim());
 
         // Split synonyms/multiple words
         const words = currentWords.split(';').map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
