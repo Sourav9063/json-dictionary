@@ -665,10 +665,6 @@
               if (numberedMatch) {
                   // Use the text after "1. "
                   fullDef = numberedMatch[1];
-              } else {
-                  // If no numbered definition, try to strip Etym block at the start
-                  // Matches "Etym: [...]" non-greedily
-                  fullDef = fullDef.replace(/^Etym:\s*\[.*?\]\s*/, '');
               }
               
               // Take the first part before a period
