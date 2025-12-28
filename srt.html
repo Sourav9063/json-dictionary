@@ -343,6 +343,37 @@
       };
 
       // Core Logic
+      const getConciseMeaning = (fullDef, limit = 0) => {
+        if (!fullDef) return "";
+
+        // Split into major blocks (senses/categories)
+        const blocks = fullDef.split(/\n\n+/);
+        
+        // Heuristic to find the "best" block for a concise meaning
+        // 1. Prefer blocks with domain markers like (Chess), (Law), (Naut.), etc.
+        // 2. Otherwise prefer the first block that isn't a simple cross-reference
+        let bestBlock = blocks.find(b => b.trim().startsWith('(')) || blocks[0];
+        
+        if (bestBlock.trim().startsWith('See ') && blocks.length > 1) {
+          bestBlock = blocks[1];
+        }
+
+        // Remove leading numbers like "1. ", "2. "
+        let meaning = bestBlock.replace(/^\s*\d+\.\s+/, '').trim();
+        
+        if (limit > 0 && meaning.length > limit) {
+          // Take the first substantial sentence
+          const sentences = meaning.split(/\.\s+(?=[A-Z(])/);
+          meaning = sentences[0].trim();
+          
+          if (meaning.length > limit) {
+            meaning = meaning.substring(0, limit - 3) + "...";
+          }
+        }
+        
+        return meaning;
+      };
+
       const loadCommonWords = async (count) => {
         store.clearSet("commonWords");
 
@@ -559,7 +590,7 @@
 
               const def = document.createElement("div");
               def.className = "word-def";
-              def.textContent = entry.definition;
+              def.textContent = getConciseMeaning(entry.definition,200);
 
               card.appendChild(term);
               card.appendChild(def);
@@ -654,19 +685,7 @@
             
             sortedWords.forEach(word => {
               const entry = store.getDictionaryEntry(word);
-              let fullDef = entry.definition.replace(/\s+/g, ' ').trim();
-              let meaning = "";
-
-              if (fullDef.length < 100) {
-                meaning = fullDef;
-              } else {
-                // Search for "1. " definition
-                const numberedMatch = fullDef.match(/(?:^|\s)1\.\s+(.*)/);
-                let targetDef = numberedMatch ? numberedMatch[1] : fullDef;
-                
-                // Take the first part before a period
-                meaning = targetDef.split('.')[0].trim();
-              }
+              const meaning = getConciseMeaning(entry.definition, 200);
               
               if (meaning) {
                 wordMap.set(word, meaning);
