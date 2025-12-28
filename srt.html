@@ -654,21 +654,19 @@
             
             sortedWords.forEach(word => {
               const entry = store.getDictionaryEntry(word);
-              let fullDef = entry.definition;
-              
-              // Normalize whitespace first
-              fullDef = fullDef.replace(/\s+/g, ' ').trim();
+              let fullDef = entry.definition.replace(/\s+/g, ' ').trim();
+              let meaning = "";
 
-              // Search for "1. " definition
-              const numberedMatch = fullDef.match(/(?:^|\s)1\.\s+(.*)/);
-              
-              if (numberedMatch) {
-                  // Use the text after "1. "
-                  fullDef = numberedMatch[1];
+              if (fullDef.length < 100) {
+                meaning = fullDef;
+              } else {
+                // Search for "1. " definition
+                const numberedMatch = fullDef.match(/(?:^|\s)1\.\s+(.*)/);
+                let targetDef = numberedMatch ? numberedMatch[1] : fullDef;
+                
+                // Take the first part before a period
+                meaning = targetDef.split('.')[0].trim();
               }
-              
-              // Take the first part before a period
-              let meaning = fullDef.split('.')[0].trim();
               
               if (meaning) {
                 wordMap.set(word, meaning);
