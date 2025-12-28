@@ -365,7 +365,10 @@
         meaning = meaning.replace(/^\([^)]+\)\s*/, '');
 
         // Remove subsequent numbered definitions (e.g. "Def 1. 2. Def 2" -> "Def 1")
-        meaning = meaning.split('.')[0].trim();
+        meaning = meaning.split(/\s+\d+\.\s+/)[0];
+
+        // Keep first sentence but respect abbreviations
+        meaning = meaning.split(/\.\s+(?=[A-Z])/)[0].trim();
         
         if (limit > 0 && meaning.length > limit) {
           // Take the first substantial sentence
