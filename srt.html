@@ -451,6 +451,23 @@
           .map((word) => word.replace(/^[^a-z]+|[^a-z]+$/g, ""));
       };
 
+      const findConstituents = (term) => {
+        if (store.hasDictionaryEntry(term)) return [term];
+        
+        const parts = term.split(/[^a-z]+/).filter(p => p.length > 0);
+        
+        // If we couldn't split it further, or it resulted in the same single word
+        if (parts.length === 0 || (parts.length === 1 && parts[0] === term)) {
+           return [];
+        }
+        
+        let results = [];
+        for (const part of parts) {
+           results = results.concat(findConstituents(part));
+        }
+        return results;
+      };
+
       const getVisibleIntervalId = () => {
         const sections = document.querySelectorAll(".interval-section");
         const controls = document.querySelector(".controls");
@@ -583,6 +600,8 @@
         ui.downloadGroup.style.display = "none";
         setStatus("Processing vocabulary...", "loading");
 
+        await loadDictionary();
+
         const INTERVAL_MS = 600000; // 10 minutes
         const grouped = new Map();
         const allUniqueWords = new Set();
@@ -594,17 +613,25 @@
 
           const words = getUniqueWords(sub.text);
           words.forEach((word) => {
-            if (!store.hasInSet("commonWords", word)) {
-              const intervalMap = grouped.get(intervalIndex);
-              if (!intervalMap.has(word)) {
-                intervalMap.set(word, sub.startTimeMs);
-              }
-              allUniqueWords.add(word);
-            }
+            if (store.hasInSet("commonWords", word)) return;
+
+            const constituents = findConstituents(word);
+            
+            // If no constituents found (and word not in dict), check if word itself is valid for grouping?
+            // If findConstituents returns [], it means neither the word nor its parts are in the dictionary.
+            // In that case we skip it as we can't define it.
+            
+            constituents.forEach(part => {
+                 if (part.length > 3 && !store.hasInSet("commonWords", part)) {
+                    const intervalMap = grouped.get(intervalIndex);
+                    if (!intervalMap.has(part)) {
+                      intervalMap.set(part, sub.startTimeMs);
+                    }
+                    allUniqueWords.add(part);
+                 }
+            });
           });
         });
-
-        await loadDictionary();
 
         renderResults(grouped);
         ui.downloadGroup.style.display = "flex";
@@ -628,13 +655,16 @@
           const wordsToDefine = new Set();
 
           words.forEach((word) => {
-            if (
-              (wordUsageCount.get(word) || 0) < 2 &&
-              !store.hasInSet("commonWords", word) &&
-              store.hasDictionaryEntry(word)
-            ) {
-              wordsToDefine.add(word);
-            }
+            const constituents = findConstituents(word);
+            constituents.forEach(part => {
+                if (
+                  (wordUsageCount.get(part) || 0) < 2 &&
+                  !store.hasInSet("commonWords", part)
+                  // hasDictionaryEntry is guaranteed by findConstituents
+                ) {
+                  wordsToDefine.add(part);
+                }
+            });
           });
 
           if (wordsToDefine.size > 0) {
