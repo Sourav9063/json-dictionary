@@ -255,7 +255,7 @@
         <nav>
           <a href="index.html" class="nav-link">← Back to Dictionary Search</a>
           <span style="margin: 0 10px; color: #ccc;">|</span>
-          <a href="srt-simple.html" class="nav-link">Try Simple Version</a>
+          <a href="srt-simple.html" class="nav-link">Try Full Version</a>
         </nav>
         <h1>SRT Vocabulary Extractor</h1>
         <p class="description">
@@ -277,7 +277,7 @@
           </div>
 
           <div class="control-group" id="downloadGroup" style="display: none;">
-            <button id="downloadBtn" class="btn-primary">Download SRT with Meanings</button>
+            <button id="downloadBtn" type="button" class="btn-primary">Download SRT with Meanings</button>
           </div>
 
           <div class="file-drop-area" id="dropArea">
@@ -345,47 +345,12 @@
       };
 
       // Core Logic
-      const getConciseMeaning = (fullDef, limit = 0) => {
+      const getConciseMeaning = (fullDef, limit = 250) => {
         if (!fullDef) return "";
-
-        // Split into major blocks (senses/categories)
-        const blocks = fullDef.split(/\n\n+/);
-        
-        // Heuristic to find the "best" block for a concise meaning
-        // 1. Prefer blocks with domain markers like (Chess), (Law), (Naut.), etc.
-        // 2. Prefer blocks that start with a definition number "1." or "(a)"
-        // 3. Otherwise prefer the first block that isn't a simple cross-reference
-        let bestBlock = blocks.find(b => b.trim().startsWith('(')) || 
-                        blocks.find(b => /^\s*1\.\s+/.test(b)) ||
-                        blocks[0];
-        
-        if (bestBlock.trim().startsWith('See ') && blocks.length > 1) {
-          const nonSeeBlock = blocks.find(b => !b.trim().startsWith('See '));
-          if (nonSeeBlock) bestBlock = nonSeeBlock;
-        }
-
-        // Remove leading numbers like "1. ", "2. "
-        let meaning = bestBlock.replace(/^\s*\d+\.\s+/, '').trim();
-
-        // Remove leading parenthetical context (e.g. "(Naut.)", "(Gunnery, Mining, etc.)")
-        meaning = meaning.replace(/^\([^)]+\)\s*/, '');
-
-        // Remove subsequent numbered definitions (e.g. "Def 1. 2. Def 2" -> "Def 1")
-        meaning = meaning.split(/\s+\d+\.\s+/)[0];
-
-        // Keep first sentence but respect abbreviations
-        meaning = meaning.split(/\.\s+(?=[A-Z])/)[0].trim();
-        
+        let meaning = fullDef;
         if (limit > 0 && meaning.length > limit) {
-          // Take the first substantial sentence
-          const sentences = meaning.split(/\.\s+(?=[A-Z(])/);
-          meaning = sentences[0].trim();
-          
-          if (meaning.length > limit) {
-            meaning = meaning.substring(0, limit - 3) + "...";
-          }
+            meaning = meaning.split('.')[0];
         }
-        
         return meaning;
       };
 
@@ -419,32 +384,27 @@
         }
       };
 
-      const fetchDictionaryForLetter = async (letter) => {
-        const lowerLetter = letter.toLowerCase();
-        if (
-          !/[a-z]/.test(lowerLetter) ||
-          store.hasInSet("loadedLetters", lowerLetter)
-        )
-          return;
+      const loadDictionary = async () => {
+        if (store.get("dictionaryLoaded")) return;
 
+        setStatus("Loading dictionary...", "loading");
         try {
-          const response = await fetch(`cleaned/alpha/${lowerLetter}.json`);
+          const response = await fetch("simple/filtered-dictionary.json");
           if (response.ok) {
             const data = await response.json();
-            // Store lowercase key -> original data
             Object.entries(data).forEach(([key, definition]) => {
               store.setDictionaryEntry(key.toLowerCase(), {
                 original: key,
                 definition,
               });
             });
-            store.addToSet("loadedLetters", lowerLetter);
+            store.set("dictionaryLoaded", true);
+          } else {
+             throw new Error("Failed to load dictionary");
           }
         } catch (e) {
-          console.warn(
-            `Could not load dictionary for letter '${lowerLetter}'`,
-            e,
-          );
+          console.error(e);
+          setStatus("Error loading dictionary.", "error");
         }
       };
 
@@ -652,27 +612,15 @@
           });
         });
 
-        const requiredLetters = new Set();
-        allUniqueWords.forEach((word) => {
-          if (word && word.length > 0) requiredLetters.add(word[0]);
-        });
-
-        if (requiredLetters.size > 0) {
-          setStatus(
-            `Loading definitions for ${requiredLetters.size} letters...`,
-            "loading",
-          );
-          await Promise.all(
-            [...requiredLetters].map((l) => fetchDictionaryForLetter(l)),
-          );
-        }
+        await loadDictionary();
 
         renderResults(grouped);
         ui.downloadGroup.style.display = "flex";
         setStatus("Processing complete.", "success");
       };
 
-      const generateAndDownloadSRT = () => {
+      const generateAndDownloadSRT = (e) => {
+        if (e && e.preventDefault) e.preventDefault();
         const subtitles = store.get("currentSubtitles");
         if (!subtitles || subtitles.length === 0) return;
 
@@ -689,7 +637,7 @@
 
           words.forEach((word) => {
             if (
-              (wordUsageCount.get(word) || 0) < 3 &&
+              (wordUsageCount.get(word) || 0) < 2 &&
               !store.hasInSet("commonWords", word) &&
               store.hasDictionaryEntry(word)
             ) {
@@ -719,7 +667,7 @@
               text = text.replace(regex, (match) => {
                 const lowerMatch = match.toLowerCase();
                 const count = wordUsageCount.get(lowerMatch) || 0;
-                if (count < 3) {
+                if (count < 2) {
                   const meaning = wordMap.get(lowerMatch);
                   if (meaning) {
                     wordUsageCount.set(lowerMatch, count + 1);
@@ -741,6 +689,7 @@
         a.download = newFileName;
         a.click();
         URL.revokeObjectURL(url);
+        setStatus("SRT file generated and download started!", "success");
       };
 
       const handleFileSelect = async (event) => {
