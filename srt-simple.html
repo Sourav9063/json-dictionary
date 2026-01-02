@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SRT Vocabulary Extractor</title>
+    <style>
+      :root {
+        --primary-color: #007bff;
+        --primary-hover: #0056b3;
+        --bg-color: #fcfcfc;
+        --surface-color: #ffffff;
+        --text-color: #2c3e50;
+        --text-secondary: #444;
+        --border-color: #e0e0e0;
+        --success-bg: #e8f5e9;
+        --success-text: #2e7d32;
+        --success-border: #c8e6c9;
+        --error-bg: #ffebee;
+        --error-text: #c62828;
+        --error-border: #ffcdd2;
+        --loading-bg: #e7f3ff;
+        --loading-text: #007bff;
+        --loading-border: #b3d7ff;
+        --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+        --radius-md: 8px;
+        --radius-sm: 6px;
+      }
+
+      *,
+      *:before,
+      *:after {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        line-height: 1.6;
+        margin: 0;
+        padding: 20px;
+      }
+
+      .main-wrapper {
+        max-width: 900px;
+        margin: 0 auto;
+      }
+
+      header {
+        margin-bottom: 40px;
+      }
+
+      h1 {
+        color: var(--text-color);
+        margin-bottom: 0.5em;
+      }
+
+      .description {
+        color: var(--text-secondary);
+        margin-bottom: 20px;
+      }
+
+      .nav-link {
+        display: inline-block;
+        color: var(--primary-color);
+        text-decoration: none;
+        font-weight: 500;
+        margin-bottom: 20px;
+        transition: color 0.2s;
+      }
+
+      .nav-link:hover {
+        color: var(--primary-hover);
+        text-decoration: underline;
+      }
+
+      .controls {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 30px;
+        align-items: center;
+        background: var(--surface-color);
+        padding: 16px 20px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-color);
+        box-shadow: var(--shadow-sm);
+        position: sticky;
+        top: 0px;
+        z-index: 100;
+      }
+
+      .control-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .btn-primary {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        font-size: 1rem;
+        transition: background-color 0.2s;
+      }
+
+      .btn-primary:hover {
+        background-color: var(--primary-hover);
+      }
+
+      select {
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        font-size: 1rem;
+        background-color: var(--surface-color);
+        cursor: pointer;
+      }
+
+      select:focus {
+        outline: 2px solid var(--primary-color);
+        border-color: var(--primary-color);
+      }
+
+      .file-drop-area {
+        position: relative;
+        flex: 1;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        border: 2px dashed var(--border-color);
+        border-radius: var(--radius-md);
+        background-color: var(--surface-color);
+        transition: all 0.2s;
+        cursor: pointer;
+        text-align: center;
+      }
+
+      .file-drop-area:hover,
+      .file-drop-area.drag-over {
+        border-color: var(--primary-color);
+        background-color: #f8fbff;
+      }
+
+      .file-drop-area input[type="file"] {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      .file-msg {
+        color: var(--text-secondary);
+        pointer-events: none;
+      }
+
+      .status {
+        padding: 12px 16px;
+        border-radius: var(--radius-sm);
+        margin-bottom: 20px;
+        font-weight: 500;
+        display: none;
+      }
+
+      .status.visible {
+        display: block;
+      }
+      .status.loading {
+        background: var(--loading-bg);
+        color: var(--loading-text);
+        border: 1px solid var(--loading-border);
+      }
+      .status.error {
+        background: var(--error-bg);
+        color: var(--error-text);
+        border: 1px solid var(--error-border);
+      }
+      .status.success {
+        background: var(--success-bg);
+        color: var(--success-text);
+        border: 1px solid var(--success-border);
+      }
+
+      .interval-section {
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        padding: 25px;
+        margin-bottom: 30px;
+        box-shadow: var(--shadow-sm);
+      }
+
+      .interval-title {
+        font-size: 1.4rem;
+        color: var(--text-color);
+        border-bottom: 2px solid var(--primary-color);
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+        font-weight: 700;
+      }
+
+      .word-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+      }
+
+      .word-card {
+        background: #fafafa;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .word-term {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--primary-color);
+      }
+
+      .word-def {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        white-space: pre-wrap;
+        overflow-y: auto;
+        max-height: 150px;
+      }
+
+      @media (max-width: 600px) {
+        .controls {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .file-drop-area {
+          min-width: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main-wrapper">
+      <header>
+        <nav>
+          <a href="index.html" class="nav-link">← Back to Dictionary Search</a>
+        </nav>
+        <h1>SRT Vocabulary Extractor</h1>
+        <p class="description">
+          Upload a .srt subtitle file to extract and define uncommon words
+          (longer than 3 chars), grouped by 10-minute intervals.
+        </p>
+      </header>
+
+      <main>
+        <div class="controls">
+          <div class="control-group">
+            <label for="commonWordsFilter">Exclude top common words:</label>
+            <select id="commonWordsFilter">
+              <option value="0">0 (None)</option>
+              <option value="5000">5,000</option>
+              <option value="10000" selected>10,000</option>
+              <option value="20000">20,000</option>
+            </select>
+          </div>
+
+          <div class="control-group" id="downloadGroup" style="display: none;">
+            <button id="downloadBtn" class="btn-primary">Download SRT with Meanings</button>
+          </div>
+
+          <div class="file-drop-area" id="dropArea">
+            <span class="file-msg">Choose a .srt file or drag it here</span>
+            <input
+              type="file"
+              id="fileInput"
+              accept=".srt"
+              aria-label="Upload SRT file"
+            />
+          </div>
+        </div>
+
+        <div id="status" class="status" role="status" aria-live="polite"></div>
+        <div id="results" aria-live="polite"></div>
+      </main>
+    </div>
+
+    <script>
+      // State management using closures
+      const createStore = () => {
+        const state = {
+          dictionary: new Map(), // word -> { original, definition }
+          loadedLetters: new Set(),
+          commonWords: new Set(),
+          currentSubtitles: [],
+        };
+
+        return {
+          get: (key) => state[key],
+          set: (key, value) => {
+            state[key] = value;
+          },
+          addToSet: (key, value) => state[key].add(value),
+          clearSet: (key) => state[key].clear(),
+          hasInSet: (key, value) => state[key].has(value),
+          setDictionaryEntry: (key, value) => state.dictionary.set(key, value),
+          getDictionaryEntry: (key) => state.dictionary.get(key),
+          hasDictionaryEntry: (key) => state.dictionary.has(key),
+        };
+      };
+
+      const store = createStore();
+
+      // UI Elements
+      const ui = {
+        fileInput: document.getElementById("fileInput"),
+        dropArea: document.getElementById("dropArea"),
+        filterSelect: document.getElementById("commonWordsFilter"),
+        status: document.getElementById("status"),
+        results: document.getElementById("results"),
+        downloadBtn: document.getElementById("downloadBtn"),
+        downloadGroup: document.getElementById("downloadGroup"),
+      };
+
+      // UI Helpers
+      const setStatus = (message, type = "info") => {
+        ui.status.textContent = message;
+        ui.status.className = `status visible ${type}`;
+        if (type === "success") {
+          setTimeout(() => {
+            ui.status.classList.remove("visible");
+          }, 5000);
+        }
+      };
+
+      // Core Logic
+      const getConciseMeaning = (fullDef, limit = 0) => {
+        if (!fullDef) return "";
+
+        // Split into major blocks (senses/categories)
+        const blocks = fullDef.split(/\n\n+/);
+        
+        // Heuristic to find the "best" block for a concise meaning
+        // 1. Prefer blocks with domain markers like (Chess), (Law), (Naut.), etc.
+        // 2. Prefer blocks that start with a definition number "1." or "(a)"
+        // 3. Otherwise prefer the first block that isn't a simple cross-reference
+        let bestBlock = blocks.find(b => b.trim().startsWith('(')) || 
+                        blocks.find(b => /^\s*1\.\s+/.test(b)) ||
+                        blocks[0];
+        
+        if (bestBlock.trim().startsWith('See ') && blocks.length > 1) {
+          const nonSeeBlock = blocks.find(b => !b.trim().startsWith('See '));
+          if (nonSeeBlock) bestBlock = nonSeeBlock;
+        }
+
+        // Remove leading numbers like "1. ", "2. "
+        let meaning = bestBlock.replace(/^\s*\d+\.\s+/, '').trim();
+
+        // Remove leading parenthetical context (e.g. "(Naut.)", "(Gunnery, Mining, etc.)")
+        meaning = meaning.replace(/^\([^)]+\)\s*/, '');
+
+        // Remove subsequent numbered definitions (e.g. "Def 1. 2. Def 2" -> "Def 1")
+        meaning = meaning.split(/\s+\d+\.\s+/)[0];
+
+        // Keep first sentence but respect abbreviations
+        meaning = meaning.split(/\.\s+(?=[A-Z])/)[0].trim();
+        
+        if (limit > 0 && meaning.length > limit) {
+          // Take the first substantial sentence
+          const sentences = meaning.split(/\.\s+(?=[A-Z(])/);
+          meaning = sentences[0].trim();
+          
+          if (meaning.length > limit) {
+            meaning = meaning.substring(0, limit - 3) + "...";
+          }
+        }
+        
+        return meaning;
+      };
+
+      const loadCommonWords = async (count) => {
+        store.clearSet("commonWords");
+
+        if (count === "0") {
+          setStatus("All words will be included.", "success");
+          return;
+        }
+
+        setStatus(`Loading list of ${count} common words...`, "loading");
+        try {
+          const response = await fetch(
+            `dictionary/top_english_words_lower_${count}.txt`,
+          );
+          if (!response.ok) throw new Error("Failed to load common words");
+
+          const text = await response.text();
+          text.split(/\r?\n/).forEach((line) => {
+            const word = line.trim().toLowerCase();
+            if (word) store.addToSet("commonWords", word);
+          });
+          setStatus(
+            `Loaded ${store.get("commonWords").size} common words.`,
+            "success",
+          );
+        } catch (e) {
+          console.error(e);
+          setStatus("Error loading common words list.", "error");
+        }
+      };
+
+      const fetchDictionaryForLetter = async (letter) => {
+        const lowerLetter = letter.toLowerCase();
+        if (
+          !/[a-z]/.test(lowerLetter) ||
+          store.hasInSet("loadedLetters", lowerLetter)
+        )
+          return;
+
+        try {
+          const response = await fetch(`cleaned/alpha/${lowerLetter}.json`);
+          if (response.ok) {
+            const data = await response.json();
+            // Store lowercase key -> original data
+            Object.entries(data).forEach(([key, definition]) => {
+              store.setDictionaryEntry(key.toLowerCase(), {
+                original: key,
+                definition,
+              });
+            });
+            store.addToSet("loadedLetters", lowerLetter);
+          }
+        } catch (e) {
+          console.warn(
+            `Could not load dictionary for letter '${lowerLetter}'`,
+            e,
+          );
+        }
+      };
+
+      const parseSRT = (content) => {
+        const blocks = content.trim().split(/\r?\n\r?\n/);
+
+        return blocks.reduce((acc, block) => {
+          const lines = block.split(/\r?\n/);
+          if (lines.length >= 2) {
+            const timeLineIndex = lines.findIndex((line) =>
+              line.includes("-->"),
+            );
+            if (timeLineIndex !== -1) {
+              const timeMatch = lines[timeLineIndex].match(
+                /(\d{1,2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d{1,2}):(\d{2}):(\d{2})[,.](\d{3})/,
+              );
+
+              if (timeMatch) {
+                const [_, h1, m1, s1, ms1] = timeMatch;
+                const startTimeMs =
+                  (parseInt(h1) * 3600 + parseInt(m1) * 60 + parseInt(s1)) *
+                    1000 +
+                  parseInt(ms1);
+
+                const textLines = lines.slice(timeLineIndex + 1);
+                const text = textLines
+                  .join(" ")
+                  .replace(/<[^>]*>/g, "")
+                  .replace(/\{[^}]*\}/g, "");
+                
+                const timeString = lines[timeLineIndex];
+
+                acc.push({ startTimeMs, text, timeString });
+              }
+            }
+          }
+          return acc;
+        }, []);
+      };
+
+      const getUniqueWords = (text) => {
+        return text
+          .toLowerCase()
+          .replace(/[^\w\s']|_/g, " ")
+          .replace(/\s+/g, " ")
+          .split(" ")
+          .filter((word) => {
+            const clean = word.replace(/^[^a-z]+|[^a-z]+$/g, "");
+            return clean.length > 3;
+          })
+          .map((word) => word.replace(/^[^a-z]+|[^a-z]+$/g, ""));
+      };
+
+      const getVisibleIntervalId = () => {
+        const sections = document.querySelectorAll(".interval-section");
+        const controls = document.querySelector(".controls");
+        if (!controls) return null;
+
+        const controlsHeight = controls.getBoundingClientRect().height;
+
+        for (const section of sections) {
+          const rect = section.getBoundingClientRect();
+          if (rect.bottom > controlsHeight + 50) {
+            return section.id;
+          }
+        }
+        return null;
+      };
+
+      const scrollToInterval = (id) => {
+        const element = document.getElementById(id);
+        if (element) {
+          const controls = document.querySelector(".controls");
+          const controlsHeight = controls
+            ? controls.getBoundingClientRect().height
+            : 0;
+          const elementPosition = element.getBoundingClientRect().top;
+          const offsetPosition =
+            elementPosition + window.pageYOffset - controlsHeight - 20;
+
+          window.scrollTo({
+            top: offsetPosition,
+            behavior: "auto",
+          });
+        }
+      };
+
+      const renderResults = (grouped) => {
+        if (grouped.size === 0) {
+          ui.results.innerHTML =
+            '<div class="status visible info">No uncommon words longer than 3 characters found.</div>';
+          return;
+        }
+
+        const fragment = document.createDocumentFragment();
+        const sortedIntervals = [...grouped.keys()].sort((a, b) => a - b);
+        const displayedWords = new Set();
+        let hasAnyWords = false;
+
+        sortedIntervals.forEach((index) => {
+          const intervalMap = grouped.get(index);
+          // Sort words by their starting timestamp (value in the map)
+          const wordsInInterval = [...intervalMap.entries()]
+            .sort((a, b) => a[1] - b[1])
+            .map(entry => entry[0]);
+
+          const validWords = wordsInInterval.filter((word) => {
+            if (displayedWords.has(word)) return false;
+            if (store.hasDictionaryEntry(word)) {
+              displayedWords.add(word);
+              return true;
+            }
+            return false;
+          });
+
+          if (validWords.length > 0) {
+            hasAnyWords = true;
+            
+            const formatInterval = (min) => {
+              const h = Math.floor(min / 60);
+              const m = min % 60;
+              return `${h}:${m.toString().padStart(2, '0')}`;
+            };
+
+            const startMin = index * 10;
+            const endMin = (index + 1) * 10;
+
+            const section = document.createElement("section");
+            section.className = "interval-section";
+            section.id = `interval-${index}`;
+
+            const title = document.createElement("h2");
+            title.className = "interval-title";
+            title.textContent = `${formatInterval(startMin)} - ${formatInterval(endMin)}`;
+            section.appendChild(title);
+
+            const grid = document.createElement("div");
+            grid.className = "word-grid";
+
+            validWords.forEach((word) => {
+              const entry = store.getDictionaryEntry(word);
+              const startTimeMs = intervalMap.get(word);
+
+              const totalSeconds = Math.floor(startTimeMs / 1000);
+              const h = Math.floor(totalSeconds / 3600);
+              const m = Math.floor((totalSeconds % 3600) / 60);
+              const s = totalSeconds % 60;
+              const timeStr = h > 0 
+                ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+                : `${m}:${s.toString().padStart(2, '0')}`;
+
+              const card = document.createElement("div");
+              card.className = "word-card";
+
+              const term = document.createElement("div");
+              term.className = "word-term";
+              term.innerHTML = `${entry.original} <span style="font-weight:normal; font-size:0.8em; color:#666; margin-left:8px;">(${timeStr})</span>`;
+
+              const def = document.createElement("div");
+              def.className = "word-def";
+              // def.textContent = getConciseMeaning(entry.definition,250)+"##"+entry.definition;
+               def.textContent = entry.definition;
+
+              card.appendChild(term);
+              card.appendChild(def);
+              grid.appendChild(card);
+            });
+
+            section.appendChild(grid);
+            fragment.appendChild(section);
+          }
+        });
+
+        if (!hasAnyWords) {
+          ui.results.innerHTML =
+            '<div class="status visible info">Found uncommon words, but definitions were not found in the loaded dictionary.</div>';
+        } else {
+          ui.results.appendChild(fragment);
+        }
+      };
+
+      const processSubtitles = async (subtitles) => {
+        ui.results.innerHTML = "";
+        ui.downloadGroup.style.display = "none";
+        setStatus("Processing vocabulary...", "loading");
+
+        const INTERVAL_MS = 600000; // 10 minutes
+        const grouped = new Map();
+        const allUniqueWords = new Set();
+
+        subtitles.forEach((sub) => {
+          const intervalIndex = Math.floor(sub.startTimeMs / INTERVAL_MS);
+          if (!grouped.has(intervalIndex))
+            grouped.set(intervalIndex, new Map());
+
+          const words = getUniqueWords(sub.text);
+          words.forEach((word) => {
+            if (!store.hasInSet("commonWords", word)) {
+              const intervalMap = grouped.get(intervalIndex);
+              if (!intervalMap.has(word)) {
+                intervalMap.set(word, sub.startTimeMs);
+              }
+              allUniqueWords.add(word);
+            }
+          });
+        });
+
+        const requiredLetters = new Set();
+        allUniqueWords.forEach((word) => {
+          if (word && word.length > 0) requiredLetters.add(word[0]);
+        });
+
+        if (requiredLetters.size > 0) {
+          setStatus(
+            `Loading definitions for ${requiredLetters.size} letters...`,
+            "loading",
+          );
+          await Promise.all(
+            [...requiredLetters].map((l) => fetchDictionaryForLetter(l)),
+          );
+        }
+
+        renderResults(grouped);
+        ui.downloadGroup.style.display = "flex";
+        setStatus("Processing complete.", "success");
+      };
+
+      const generateAndDownloadSRT = () => {
+        const subtitles = store.get("currentSubtitles");
+        if (!subtitles || subtitles.length === 0) return;
+
+        const fileName = store.get("fileName") || "video.srt";
+        const newFileName = "With-Meaning-" + fileName;
+
+        let output = "";
+        const wordUsageCount = new Map();
+
+        subtitles.forEach((sub, index) => {
+          let text = sub.text;
+          const words = getUniqueWords(text);
+          const wordsToDefine = new Set();
+
+          words.forEach((word) => {
+            if (
+              (wordUsageCount.get(word) || 0) < 3 &&
+              !store.hasInSet("commonWords", word) &&
+              store.hasDictionaryEntry(word)
+            ) {
+              wordsToDefine.add(word);
+            }
+          });
+
+          if (wordsToDefine.size > 0) {
+            const sortedWords = Array.from(wordsToDefine).sort((a, b) => b.length - a.length);
+            const wordMap = new Map();
+            
+            sortedWords.forEach(word => {
+              const entry = store.getDictionaryEntry(word);
+              const meaning = getConciseMeaning(entry.definition, 250);
+              
+              if (meaning) {
+                wordMap.set(word, meaning);
+              }
+            });
+
+            if (wordMap.size > 0) {
+              const pattern = Array.from(wordMap.keys())
+                .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+                .join("|");
+              const regex = new RegExp(`\\b(${pattern})\\b`, "gi");
+              
+              text = text.replace(regex, (match) => {
+                const lowerMatch = match.toLowerCase();
+                const count = wordUsageCount.get(lowerMatch) || 0;
+                if (count < 3) {
+                  const meaning = wordMap.get(lowerMatch);
+                  if (meaning) {
+                    wordUsageCount.set(lowerMatch, count + 1);
+                    return `${match} <font color="#91ffcf"><i>(${meaning})</i></font>`;
+                  }
+                }
+                return match;
+              });
+            }
+          }
+
+          output += `${index + 1}\n${sub.timeString}\n${text}\n\n`;
+        });
+
+        const blob = new Blob([output], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = newFileName;
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+
+      const handleFileSelect = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const dropMsg = ui.dropArea.querySelector(".file-msg");
+        if (dropMsg) dropMsg.textContent = file.name;
+
+        store.set("fileName", file.name);
+        ui.results.innerHTML = "";
+        ui.downloadGroup.style.display = "none";
+        setStatus("Reading file...", "loading");
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            const content = e.target.result;
+            const subtitles = parseSRT(content);
+            store.set("currentSubtitles", subtitles);
+
+            if (subtitles.length === 0) {
+              setStatus(
+                "Error: Could not parse any valid subtitles from this file.",
+                "error",
+              );
+              return;
+            }
+
+            await processSubtitles(subtitles);
+          } catch (err) {
+            console.error(err);
+            setStatus("Error processing file.", "error");
+          }
+        };
+        reader.onerror = () => setStatus("Error reading file.", "error");
+        reader.readAsText(file);
+      };
+
+      const initEventListeners = () => {
+        ui.fileInput.addEventListener("change", handleFileSelect);
+        ui.downloadBtn.addEventListener("click", generateAndDownloadSRT);
+
+        const preventDefaults = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        };
+
+        ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
+          ui.dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        ["dragenter", "dragover"].forEach((eventName) => {
+          ui.dropArea.addEventListener(
+            eventName,
+            () => ui.dropArea.classList.add("drag-over"),
+            false,
+          );
+        });
+
+        ["dragleave", "drop"].forEach((eventName) => {
+          ui.dropArea.addEventListener(
+            eventName,
+            () => ui.dropArea.classList.remove("drag-over"),
+            false,
+          );
+        });
+
+        ui.dropArea.addEventListener("drop", (e) => {
+          const dt = e.dataTransfer;
+          const files = dt.files;
+          if (files.length) {
+            ui.fileInput.files = files;
+            handleFileSelect({ target: { files: files } });
+          }
+        });
+
+        ui.filterSelect.addEventListener("change", async () => {
+          const visibleId = getVisibleIntervalId();
+
+          await loadCommonWords(ui.filterSelect.value);
+          const currentSubs = store.get("currentSubtitles");
+          if (currentSubs.length > 0) {
+            await processSubtitles(currentSubs);
+            if (visibleId) {
+              scrollToInterval(visibleId);
+            }
+          }
+        });
+      };
+
+      // Initialize
+      document.addEventListener("DOMContentLoaded", () => {
+        loadCommonWords(ui.filterSelect.value);
+        initEventListeners();
+      });
+    </script>
+  </body>
+</html>
