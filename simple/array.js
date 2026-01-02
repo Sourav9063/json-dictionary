@@ -5,7 +5,7 @@ const FILTERED = true;
 
 // distinct file paths
 const inputPath = path.join(__dirname, 'dictionary.json');
-const outputPath = path.join(__dirname, `${FILTERED?"filtered-":""}array-dictionary.json`);
+const outputPath = path.join(__dirname, `${FILTERED?"filtered-":""}dictionary.json`);
 
 console.log(`Reading from: ${inputPath} (Filtered: ${FILTERED})`);
 
