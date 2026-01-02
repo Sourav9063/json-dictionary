@@ -486,7 +486,9 @@
       const getUniqueWords = (text) => {
         return text
           .toLowerCase()
-          .replace(/[^\w\s']|_/g, " ")
+          .replace(/’/g, "'") // Normalize smart quotes
+          .replace(/'s\b/g, "") // Remove 's
+          .replace(/[^\w\s'-]|_/g, " ")
           .replace(/\s+/g, " ")
           .split(" ")
           .filter((word) => {
@@ -599,7 +601,7 @@
 
               const term = document.createElement("div");
               term.className = "word-term";
-              term.innerHTML = `${entry.original} <span style="font-weight:normal; font-size:0.8em; color:#666; margin-left:8px;">(${timeStr})</span>`;
+              term.innerHTML = `${entry.original}<span style="font-weight:normal; font-size:0.8em; color:#666;">(${timeStr})</span>`;
 
               const def = document.createElement("div");
               def.className = "word-def";
@@ -721,7 +723,7 @@
                   const meaning = wordMap.get(lowerMatch);
                   if (meaning) {
                     wordUsageCount.set(lowerMatch, count + 1);
-                    return `${match} <font color="#91ffcf"><i>(${meaning})</i></font>`;
+                    return `${match}<font color="#91ffcf"><i>(${meaning})</i></font>`;
                   }
                 }
                 return match;
